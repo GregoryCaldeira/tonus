@@ -1,0 +1,46 @@
+# Tonus firmware defaults for the M5Stack Tab5 (ESP32-P4 + ESP32-C6).
+CONFIG_IDF_TARGET="esp32p4"
+
+# Tab5 ships with ESP32-P4 silicon rev v1.x: keep support for revisions below v3.0.
+CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y
+
+# Flash and partitions
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# PSRAM: big allocations (frame buffers, LVGL objects, audio buffers) go to PSRAM so internal
+# DMA RAM stays free for the SDIO link to the C6.
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_SPEED_200M=y
+CONFIG_SPIRAM_USE_MALLOC=y
+CONFIG_SPIRAM_MALLOC_ALWAYSINTERNAL=4096
+
+# CPU / RTOS
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_360=y
+CONFIG_FREERTOS_HZ=1000
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+CONFIG_COMPILER_CXX_EXCEPTIONS=n
+CONFIG_COMPILER_CXX_RTTI=n
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# LVGL
+CONFIG_LV_COLOR_DEPTH_16=y
+CONFIG_LV_USE_CLIB_MALLOC=y
+CONFIG_LV_USE_CLIB_STRING=y
+CONFIG_LV_USE_CLIB_SPRINTF=y
+CONFIG_LV_DEF_REFR_PERIOD=15
+CONFIG_LV_USE_CANVAS=y
+# ui/widgets/pixel_art redraws its own buffers in place; keep the image cache off.
+CONFIG_LV_CACHE_DEF_SIZE=0
+CONFIG_LV_FONT_MONTSERRAT_14=y
+CONFIG_LV_USE_LOG=y
+CONFIG_LV_LOG_LEVEL_WARN=y
+
+# esp_lvgl_port: rotate to landscape with the P4 pixel-processing accelerator (software rotation
+# of 1280x720 would saturate a core).
+CONFIG_LVGL_PORT_ENABLE_PPA=y
+
+# Logging
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
