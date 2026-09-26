@@ -76,7 +76,7 @@ All output goes through one `AudioSink` interface. There are three kinds of sink
 
 | Layer | Choice |
 |---|---|
-| Framework | **ESP-IDF v5.4+** (C++17), CMake, `idf.py` |
+| Framework | **ESP-IDF v6.1** (pinned in `tools/idf-version.txt`; C++17), CMake, `idf.py` |
 | BSP | Espressif BSP for Tab5 (`espressif/m5stack_tab5`; check the exact name and version in the Component Registry when scaffolding). `espp/m5stack-tab5` as a reference |
 | UI | **LVGL 9** (MIPI-DSI, double-buffered in PSRAM, PPA/2D-DMA where available) |
 | Audio codec | `esp_codec_dev` (ES8388 out, ES7210 in) |
@@ -84,7 +84,7 @@ All output goes through one `AudioSink` interface. There are three kinds of sink
 | BLE | ESP-Hosted-MCU + NimBLE (phase 5) |
 | Storage | NVS (settings), LittleFS (save + assets), FATFS on microSD (optional) |
 | Host tests | CMake + Catch2 |
-| Simulator | LVGL SDL2 port on macOS/Linux + PortAudio for audio in/out |
+| Simulator | LVGL 9.6 SDL2 port on macOS/Linux; SDL audio for out and capture |
 
 ## 4. Runtime model
 
@@ -147,22 +147,49 @@ Accuracy is measured with WAV fixtures in `core/tests/fixtures/` (the `dsp-bench
 
 ```
 tonus/
-├── core/                 # platform-free C++17, no ESP-IDF includes
-│   ├── audio/            # sequencer, voices, mixer, harmony
-│   ├── dsp/              # pitch, onset, timing scoring
-│   ├── game/             # stats, XP, economy, shop, quests, mood, name generator, balance
-│   ├── theory/           # notes, intervals, scales, chords, tunings
-│   ├── i18n/
-│   └── tests/            # Catch2 + fixtures/
-├── firmware/             # ESP-IDF project for Tab5
-│   ├── main/
-│   └── components/{hal_tab5, ui, app}
-├── sim/                  # SDL2 + PortAudio desktop build of ui+app+core
-├── assets/               # sprites/, sounds/, fonts/, strings/, items.json
-├── tools/                # asset converter, name-pool builder
+├── core/                 # platform-free C++17, no ESP-IDF/LVGL includes (IDF component + CMake lib)
+│   ├── app/              # boot sequence runner            ✓ Phase 0
+│   ├── art/              # indexed bitmaps, wordmark, sprites ✓ Phase 0
+│   ├── audio/            # chiptune renderer, test tones ✓; later: sequencer, voices, mixer
+│   ├── dsp/              # later: pitch, onset, timing scoring
+│   ├── game/             # later: stats, XP, economy, shop, quests, mood, name generator
+│   ├── theory/           # later: notes, intervals, scales, chords, tunings
+│   ├── i18n/             # string lookup (tables generated from assets/strings)
+│   ├── device_hal.hpp    # the HAL interface
+│   └── tests/            # Catch2
+├── ui/                   # LVGL 9 screens + widgets, shared by firmware and sim (IDF component + CMake lib)
+│   ├── theme.*           # colour tokens (only place with hex values), fonts
+│   ├── widgets/          # pixel_art, pixel_box (buttons, windows), segment_bar
+│   ├── screens/          # splash, home (placeholder), diagnostics
+│   └── fonts/            # generated 1-bpp LVGL fonts + OFL licences
+├── firmware/             # ESP-IDF project for Tab5 (main/: app_main, hal_tab5)
+├── sim/                  # SDL2 desktop app (hal_sim, lv_conf.h, screenshot mode)
+├── assets/strings/       # en.json, pt-PT.json
+├── tools/                # i18n/gen_strings.py, fonts/convert.sh, idf-version.txt
+├── scripts/              # setup, doctor, build, flash, monitor, clean, capture_log.py
 ├── docs/
 └── .claude/skills/
 ```
 
-**HAL interfaces** (`core` defines them; `firmware/components/hal_tab5` and `sim` implement them):
-`AudioSink`, `AudioSource`, `Storage`, `Clock`, `DeviceInfo` (MAC, battery).
+**HAL:** `core/device_hal.hpp` (`DeviceHal`: info, heap, PCM/tone playback, mic level, settings)
+is implemented by `firmware/main/hal_tab5.cpp` and `sim/hal_sim.cpp`. It gets split into
+`AudioSink` / `AudioSource` / `Storage` / `Clock` when the real-time audio engine arrives (Phase 1).
+
+## 10. Tab5 bring-up notes (learned in Phase 0)
+
+- **Board revisions.** The BSP detects three variants from the touch controller: v1 ILI9881C + GT911,
+  v2 ST7123, v3 ST7121 + ST712x touch. The development unit is **v3** (chip rev **v1.3**).
+- **Panel power-cycle before the BSP.** The LCD and touch enable lines are on an I/O expander that keeps
+  its state across a chip reset. If the LCD was left in reset, the BSP's probe finds no touch controller
+  and **asserts ("Unsupported board version") in a boot loop**. `powerCyclePanel()` in `main.cpp` toggles
+  both lines before `bsp_display_start_with_config()`.
+- **Chip revision.** `CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y` is required. Don't use `esp_audio_codec` ≥ 2.6,
+  which needs rev 3.0.
+- **Landscape.** The panel is 720×1280 portrait. `sw_rotate` + `CONFIG_LVGL_PORT_ENABLE_PPA=y` rotates by 90°
+  on the PPA. The draw buffers (720×160, double) live in PSRAM, which leaves internal DMA RAM free for SDIO.
+- **Resetting into the app.** An RTS/USB reset leaves the P4 in download mode (`boot:0x204`). Use esptool's
+  `--after watchdog-reset`, as `scripts/capture_log.py` does, or press the reset button.
+- **Audio.** The BSP runs I²S1 full-duplex, 48 kHz / 16-bit, mono slots. Speaker (ES8388) and mic (ES7210)
+  are opened with the same format. The mic gain is 30 dB.
+- **LVGL 9.6.** The generic flag APIs are deprecated (use `lv_obj_set_hidden/clickable/scrollable`),
+  and the image-cache API is private. `CONFIG_LV_CACHE_DEF_SIZE=0` keeps the in-place pixel-art buffers safe.
