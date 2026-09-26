@@ -5,34 +5,36 @@ description: Build and run Tonus — host unit tests, the desktop SDL simulator,
 
 # Build and flash
 
-Pick the target from the request (default: host tests, then the simulator).
+Everything goes through the root `Makefile`, which calls the `scripts/`. Pick the target from the
+request (default: `make test`, then `make sim`).
 
-## Host tests (`core/`)
-```sh
-cmake -S core -B build/core -DCMAKE_BUILD_TYPE=Debug
-cmake --build build/core -j
-ctest --test-dir build/core --output-on-failure
-```
+| Goal | Command |
+|---|---|
+| Check the toolchain and device | `make doctor` |
+| Host unit tests (`core/`) | `make test` |
+| Desktop simulator | `make sim` |
+| Firmware build only | `make build` |
+| Flash + interactive monitor | `make flash` (`PORT=/dev/cu.usbmodemXXXX` if needed) |
 
-## Simulator (`sim/`, SDL2 + PortAudio)
+## Non-interactive use (from Claude)
+`idf.py monitor` needs a TTY, so don't use `make flash` / `make monitor` from a tool call. Instead:
 ```sh
-cmake -S sim -B build/sim -DCMAKE_BUILD_TYPE=Debug
-cmake --build build/sim -j
-./build/sim/tonus_sim
-```
-
-## Firmware (Tab5)
-Needs ESP-IDF v5.4+ exported (`. $IDF_PATH/export.sh`).
-```sh
-cd firmware
-idf.py set-target esp32p4        # first time only
-idf.py build
-idf.py -p <PORT> flash monitor   # macOS port: /dev/cu.usbmodem*
+. ~/esp/esp-idf-v6.1/export.sh
+cd firmware && idf.py build && idf.py -p <PORT> flash
+python ../scripts/capture_log.py <PORT> 12     # watchdog-resets into the app and prints 12 s of log
 ```
 - Find the port with `ls /dev/cu.usbmodem*`. If there's more than one, ask the user.
-- If flashing fails to connect: hold the Tab5 boot/reset combination described in the M5Stack docs, then retry.
-- Watch the monitor for `audio underrun` counters and task watchdog warnings, and report them.
+- Never use an RTS/USB reset to start the app: it leaves the ESP32-P4 in download mode (`boot:0x204`).
+- Decode a crash with `riscv32-esp-elf-addr2line -pfiaC -e build/tonus.elf <addrs>`.
+
+## Simulator screenshots (checking layouts without the device)
+```sh
+./build/sim/tonus_sim --screenshot /tmp/splash.bmp --at 3500
+./build/sim/tonus_sim --screen diag --lang pt --theme bedroom --screenshot /tmp/diag.bmp --at 800 --settings /tmp/sim.txt
+```
+Then Read the BMP (convert it to PNG with Pillow if needed) and compare it against docs/DESIGN_GUIDELINES.md.
 
 ## Report
-State which targets were built, test results (pass/fail counts with failing test names), and
-any warnings from the monitor. Don't claim a device run succeeded unless monitor output shows it.
+State which targets were built, the test results (pass/fail counts, with failing test names), and any
+errors, panics or warnings from the log. Don't claim a device run succeeded unless the log shows
+`tonus: Boot finished`.
