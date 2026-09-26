@@ -1,0 +1,8 @@
+{
+  "name": "tonus-font-tools",
+  "private": true,
+  "description": "Converts the pixel font into LVGL C fonts (see convert.sh)",
+  "devDependencies": {
+    "lv_font_conv": "^1.5.3"
+  }
+}
