@@ -1,0 +1,8 @@
+build/
+firmware/build/
+firmware/sdkconfig
+firmware/sdkconfig.old
+firmware/managed_components/
+tools/fonts/node_modules/
+tools/fonts/src/
+.DS_Store
