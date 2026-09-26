@@ -2,7 +2,7 @@
 
 Related: [Product](PRODUCT.md) · [Gamification](GAMIFICATION.md) · [Architecture](ARCHITECTURE.md)
 
-Target: **M5Stack Tab5**, 5" IPS, **1280 × 720 landscape**, capacitive touch (GT911), ≈ 294 ppi.
+Target: **M5Stack Tab5**, 5" IPS, **1280 × 720 landscape**, capacitive touch (GT911 or ST712x, depending on board revision), ≈ 294 ppi.
 
 ---
 
@@ -14,6 +14,10 @@ Target: **M5Stack Tab5**, 5" IPS, **1280 × 720 landscape**, capacitive touch (G
 | ![Pixel buttons](design/inspiration/02-pixel-buttons.png) | **Buttons.** Pill shapes with stepped corners, pastel fills, dark outline, top-left highlight dashes, hard drop shadow. |
 | ![Y2K windows](design/inspiration/03-y2k-windows.png) | **Panels (Bedroom theme).** Retro OS windows with title bars and `○○○` controls, pink grid background, sparkles, folders, cursor details. |
 | ![Neon arcade](design/inspiration/04-neon-arcade.png) | **Mood (Stage theme).** Night-time purple neon, glowing headers, arcade icons, "INSERT COIN" energy. |
+| ![Layered pixel text](design/inspiration/05-layered-pixel-text.png) | **Wordmark depth.** Pastel face over stacked pink/yellow shadow layers. |
+| ![Outlined pixel text](design/inspiration/06-outlined-pixel-text.png) | **Wordmark outline.** Pink/cyan offset outlines around a white face. |
+| ![Thick outline](design/inspiration/07-thick-outline-color.png) ![Thick outline mono](design/inspiration/08-thick-outline-mono.png) | **Wordmark silhouette.** Very thick stepped outline with a solid block shadow down-right. |
+| ![Rock logo mood](design/inspiration/09-rock-logo-mood.png) | **Rock attitude only.** Pointed serifs and chrome shading. *This is a trademarked logo: never copy its letterforms.* |
 
 > These images are **reference only**. Some are stock images with watermarks. Never ship
 > or trace them. All production art is drawn from scratch.
@@ -48,6 +52,10 @@ Code references **tokens only**. Hex values live in one theme file.
 | `early` | `#5EC8FF` | `#2B8FD6` | Early hits (with ◀ arrow) |
 | `late` | `#FF8A5C` | `#E0602F` | Late hits (with ▶ arrow) |
 | `danger` | `#FF4D6D` | `#D93355` | Destructive only (reset save) |
+| `on_fill` | `#1B1B2F` | `#1B1B2F` | Text on pastel button fills and title bars |
+| `chrome_hi` | `#FFF4E0` | `#FFFFFF` | Wordmark face, upper half |
+| `chrome_lo` | `#C9B8F0` | `#E7D6FF` | Wordmark face, lower half |
+| `sparkle` | `#FFFFFF` | `#FFFFFF` | Brightest highlight (glint, sparkles) |
 
 Button fills use the pastel set from reference 02: `cyan`, `pink`, `primary`, `yellow`.
 Each has a `*_light` (+20% L) highlight tone and a `*_dark` (−25% L) bevel tone.
@@ -66,10 +74,12 @@ Each has a `*_light` (+20% L) highlight tone and a `*_dark` (−25% L) bevel ton
 
 ## 5. Typography
 
-- **Font:** an OFL-licensed pixel font with full Latin-1 coverage. It **must** render
-  `ç ã õ á à â é ê í ó ô ú Á É Ç`. Candidates to evaluate: *Pixelify Sans*, *Silkscreen*.
-  Keep the licence in `assets/fonts/`.
+- **Fonts** (OFL, full Latin-1, checked for `ç ã õ á à â é ê í ó ô ú Á É Ç …`), converted to
+  LVGL at **1 bpp** by `tools/fonts/convert.sh` into `ui/fonts/` (licences alongside):
+  - **Silkscreen Bold** for display text: titles, buttons, tagline (`display24/32/48`).
+  - **Pixelify Sans** for body text: labels, status, paragraphs (`body16/24/32`).
 - **Scale (px):** `16` caption · `24` body · `32` label/button · `48` title · `96` hero · `160` giant readout.
+  (96/160 px sizes get generated when the tuner and metronome need them.)
 - **Buttons:** uppercase with +1 art-px letter-spacing (as in reference 02).
 - **PT-PT runs ~20–30% longer than EN.** Design every label for the PT-PT length.
 - BPM, tuner note and cents use the **giant (160 px)** or **hero (96 px)** size.
@@ -245,7 +255,44 @@ Each has a `*_light` (+20% L) highlight tone and a `*_dark` (−25% L) bevel ton
 └──────┴──────────────────────────────────────────────────────────────┘
 ```
 
-## 13. Accessibility checklist (every screen)
+## 13. Logo & wordmark
+
+Generated in code by `core/art/wordmark.cpp` (no image file), so it's crisp at any integer scale
+and follows the theme.
+
+- **Letterforms:** original "rock pixel" lettering, 16 art-px tall. Cap height is rows 2–13;
+  pointed spikes sit above and below it (T arm tips and stem point, N corners, U top corners,
+  S terminals). **Two rules for readability:** the O has no spikes (spikes made it read as a "Q"),
+  and the U has a flat, square bottom (a pointed bottom made it read as a "V").
+- **Face:** two-band chrome, `chrome_hi` (upper half) and `chrome_lo` (lower half), plus a
+  `sparkle` highlight on the top edge.
+- **Depth:** a solid 4 art-px extrusion down-right, the nearer half `pink` and the farther half
+  `primary`. One `outline` goes around the whole silhouette and another around the face.
+- **Size:** 92 × 22 art-px. Shown at **×10** on the splash (920 × 220) and ×4 on Home.
+- **Glint:** a 2-px diagonal `sparkle` streak sweeps across the face (80 ms per step, every ~3 s).
+- Don't redraw the wordmark by hand in other places. Always use `composeWordmark()`.
+
+Check a glyph change visually first (render it at ×8), then run `make test`. The tests check that
+the face is fully outlined and that no pixel is left orphaned.
+
+## 14. Splash screen
+
+```
+ stars (1–2 art-px, twinkle) · sparkles (5×5, blink) · lightning bolts (yellow, 8 fps flicker)
+                  ⚡   [ TONUS wordmark ×10, drops in with a stepped overshoot ]   ⚡
+                              YOUR PRACTICE, THEIR CAREER        display32, text
+                         [■■■■■■■■■□□□□□□□□□□□]                  20 segments, pink
+                              Warming up the amps…               body24, text_dim (boot step)
+                                  TAP TO START                   display32, yellow, 2 Hz blink
+                                                         v0.1.0  body16, text_dim
+```
+- Shown for **at least 2.5 s**, and until every boot step is done. The bar fills at most one segment
+  every 80 ms, so fast steps still read as progress.
+- A failed boot step stays visible in `late` colour ("Something went off-key: …") above the tap prompt.
+- **Tap anywhere** → Home. **Long-press the logo for 1 s** → Diagnostics (a hidden developer screen).
+- With the `reduce_motion` setting on, there's no drop-in, glint, twinkle, flicker or blink.
+
+## 15. Accessibility checklist (every screen)
 - [ ] All colours come from tokens; text contrast ≥ 4.5 : 1
 - [ ] Targets ≥ 96 px; exercise primary action ≥ 160 px tall
 - [ ] No information shown by colour alone
